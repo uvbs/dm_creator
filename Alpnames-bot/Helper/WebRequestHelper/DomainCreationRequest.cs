@@ -39,6 +39,8 @@ namespace Alpnames_bot.Helper.WebRequestHelper
         private string csrfToken;
         private string dns1;
         private string dns2;
+        private string apiToken;
+        private string email;
 
         private string proxy { get; set; }
         private string sessionId { get; set; }
@@ -129,7 +131,8 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                     response.Close();
                 }
 
-                string email = JsonOperator.GetJsonValueForKey(responseText, StringHelper.Constants.EmailKey);
+                email = JsonOperator.GetJsonValueForKey(responseText, StringHelper.Constants.EmailKey);
+                apiToken = JsonOperator.GetJsonValueForKey(responseText, StringHelper.Constants.ApiKey);
 
                 CheckIfCancellationRequested();
 
@@ -163,7 +166,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 JsonDomainObject jsonDomainObject = JsonOperator.GetJsonDomainObject(responseText);
 
                 if (jsonDomainObject != null &&
-                    jsonDomainObject.free_domains != null && 
+                    jsonDomainObject.free_domains != null &&
                     jsonDomainObject.free_domains.Count > 0 &&
                     !jsonDomainObject.free_domains[0].status.Equals("available", StringComparison.OrdinalIgnoreCase))
                 {
@@ -219,6 +222,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 token = string.Empty;
                 if (tokenNodes != null && tokenNodes.Count() > 2)
                 {
+                    // 3rd element has the value for token
                     var tokenNode = tokenNodes.ToArray()[2];
                     token = tokenNode.Attributes["value"].Value;
                 }
@@ -290,7 +294,39 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 {
                     dtRecords.Rows[index]["status"] = "booking...email to be sent...";
                 }
+
+
+                if (Request_my_freenom_com_send_email(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+                CheckIfCancellationRequested();
+
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "email sent...waiting for 10 seconds";
+                }
+
                 // booking domain ends
+                Thread.Sleep(10000);
+               
+                // checking for new mail
+                if (Request_www_guerrillamail_com_checking_for_mail(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+                CheckIfCancellationRequested();
+                string emailId = JsonOperator.GetEmailIdFromEmailsRead(responseText);
+
+                // checking mail ends      
+                
+                //TODO: get code there is only one span in resultant html and link resides in  it
+                // just click the link
+
             }
             catch (OperationCanceledException)
             {
@@ -309,6 +345,89 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 }
             }
 
+        }
+
+        private bool Request_my_freenom_com_send_email(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/cart.php?a=checkout");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Headers.Set(HttpRequestHeader.CacheControl, "max-age=0");
+                request.Headers.Add("Origin", @"https://my.freenom.com");
+                request.Headers.Add("Upgrade-Insecure-Requests", @"1");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded";
+                request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+                request.Referer = "https://my.freenom.com/cart.php?a=checkout";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"WHMCSZH5eHTGhfvzP=35uh4t8kmedr183hjkqq41drn1; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1176718596.1501523537; _gid=GA1.2.1340478577.1501523537; __utmt=1; __utma=76711234.1176718596.1501523537.1501523583.1501523583.1; __utmb=76711234.5.10.1501523583; __utmc=76711234; __utmz=76711234.1501523583.1.1.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html; fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""4lpy8Ri8mKwtFx+ylE4/ZsxOKJBzfjgX56j3cBtzd1M=""");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"token=" + token + "&verifyemail=true&myemail=" +email + "pokemail.net";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+
+        private bool Request_www_guerrillamail_com_checking_for_mail(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://www.guerrillamail.com/ajax.php?f=check_email&seq=1&site=guerrillamail.com&_=1501521981657");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Accept = "application/json, text/javascript, */*; q=0.01";
+                request.Headers.Add("X-Requested-With", @"XMLHttpRequest");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.Headers.Set(HttpRequestHeader.Authorization, "ApiToken " + apiToken);
+                request.Referer = "https://www.guerrillamail.com/";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"PHPSESSID=h0ge9m2do0jhl3d0739fqp4j03; _ga=GA1.2.1855192359.1501521985; _gid=GA1.2.383607928.1501521985");
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
         }
 
         private bool Request_my_freenom_com_cart_php_1(out HttpWebResponse response)

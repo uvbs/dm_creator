@@ -75,6 +75,7 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Helper\JavascriptHelper\JsonCheckEmailObject.cs" />
     <Compile Include="Helper\JavascriptHelper\JsonDomainObject.cs" />
     <Compile Include="Helper\JavascriptHelper\JsonObject.cs" />
     <Compile Include="Helper\JavascriptHelper\JsonOperator.cs" />

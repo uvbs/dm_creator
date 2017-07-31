@@ -11,5 +11,7 @@ namespace Alpnames_bot.Helper.StringHelper
         public const string EmailKey = "mail_recipient";
 
         public const string EmailDomain = "@pokemail.net";
+
+        public const string ApiKey = "ApiToken";
     }
 }
