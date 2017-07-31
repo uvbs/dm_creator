@@ -1,4 +1,5 @@
 ﻿using Alpnames_bot.Helper.ObjectHelper;
+using HtmlAgilityPack;
 using Jurassic.Library;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -25,7 +26,7 @@ namespace Alpnames_bot.Helper.JavascriptHelper
                 var script = doc.DocumentNode.Descendants()
                                              .Where(n => n.Name == "script")
                                              .First().InnerText;
-
+                
                 // Return the data of spect and stringify it into a proper JSON object
                 var engine = new Jurassic.ScriptEngine();
                 var result = engine.Evaluate("(function() { " + script + " return gm_init_vars; })()");

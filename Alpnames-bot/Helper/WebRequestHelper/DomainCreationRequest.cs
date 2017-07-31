@@ -1,4 +1,5 @@
 ﻿using Alpnames_bot.Helper.JavascriptHelper;
+using HtmlAgilityPack;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -41,6 +42,8 @@ namespace Alpnames_bot.Helper.WebRequestHelper
 
         private string proxy { get; set; }
         private string sessionId { get; set; }
+        private string token { get; set; }
+
 
 
         public DomainCreationRequest(DataTable dtRecords, int index, string domain, string dns1, string dns2, CancellationToken cancellationToken)
@@ -149,9 +152,20 @@ namespace Alpnames_bot.Helper.WebRequestHelper
 
                 CheckIfCancellationRequested();
 
+                if (Request_my_freenom_com_isAvailable(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+
                 JsonDomainObject jsonDomainObject = JsonOperator.GetJsonDomainObject(responseText);
 
-                if (!jsonDomainObject.free_domains[0].status.Equals("available", StringComparison.OrdinalIgnoreCase))
+                if (jsonDomainObject != null &&
+                    jsonDomainObject.free_domains != null && 
+                    jsonDomainObject.free_domains.Count > 0 &&
+                    !jsonDomainObject.free_domains[0].status.Equals("available", StringComparison.OrdinalIgnoreCase))
                 {
                     lock (dtRecords)
                     {
@@ -170,14 +184,113 @@ namespace Alpnames_bot.Helper.WebRequestHelper
 
                 // checking for domain availability ends
 
-                // adding to basket 
 
-                //TODO: Add to basket to be implemented
-                
+
+                // adding to basket 
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "adding to basket...";
+                }
+
+                if (Request_my_freenom_com_add_basket_2(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+                CheckIfCancellationRequested();
+
+
+                if (Request_my_freenom_com_cart_php(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+                CheckIfCancellationRequested();
+
+
+                HtmlAgilityPack.HtmlDocument doc = new HtmlAgilityPack.HtmlDocument();
+                doc.LoadHtml(responseText);
+
+                var tokenNodes = doc.DocumentNode.SelectNodes("//input[@type='hidden']"); ;
+                token = string.Empty;
+                if (tokenNodes != null && tokenNodes.Count() > 2)
+                {
+                    var tokenNode = tokenNodes.ToArray()[2];
+                    token = tokenNode.Attributes["value"].Value;
+                }
+
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "adding to basket ends...";
+                }
                 // adding to basket ends
 
+                // getting price list 
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "getting price list...";
+                }
+
+                if (Request_my_freenom_com_ricing_php(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+                CheckIfCancellationRequested();
 
 
+                if (Request_my_freenom_com_update_php(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+                CheckIfCancellationRequested();
+
+
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "getting price list ends...";
+                }
+                // getting price list
+
+                // booking domain
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "booking domain starts...";
+                }
+                if (Request_my_freenom_com_figure_php(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+                CheckIfCancellationRequested();
+
+
+                if (Request_my_freenom_com_cart_php_1(out response))
+                {
+                    responseText = ReadResponse(response);
+
+                    response.Close();
+                }
+
+                CheckIfCancellationRequested();
+
+
+                lock (dtRecords)
+                {
+                    dtRecords.Rows[index]["status"] = "booking...email to be sent...";
+                }
+                // booking domain ends
             }
             catch (OperationCanceledException)
             {
@@ -198,6 +311,312 @@ namespace Alpnames_bot.Helper.WebRequestHelper
 
         }
 
+        private bool Request_my_freenom_com_cart_php_1(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/cart.php?a=confdomains");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Headers.Set(HttpRequestHeader.CacheControl, "max-age=0");
+                request.Headers.Add("Origin", @"https://my.freenom.com");
+                request.Headers.Add("Upgrade-Insecure-Requests", @"1");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded";
+                request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+                request.Referer = "https://my.freenom.com/cart.php?a=confdomains&language=english";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856; __utma=76711234.1062950231.1500606029.1500622941.1501257898.4; __utmb=76711234.1.10.1501257898; __utmc=76711234; __utmz=76711234.1501257898.4.2.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"token=" + token + "&update=true&" + domain +
+                    "_tk_period=12M&idprotection%5B0%5D=on&domainns1=ns01.freenom.com&domainns2=ns02.freenom.com&domainns3=ns03.freenom.com&domainns4=ns04.freenom.com&domainns5=";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool Request_my_freenom_com_figure_php(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/includes/domains/domainconfigure.php");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Accept = "*/*";
+                request.Headers.Add("Origin", @"https://my.freenom.com");
+                request.Headers.Add("X-Requested-With", @"XMLHttpRequest");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
+                request.Referer = "https://my.freenom.com/cart.php?a=confdomains&language=english";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856; __utma=76711234.1062950231.1500606029.1500622941.1501257898.4; __utmb=76711234.1.10.1501257898; __utmc=76711234; __utmz=76711234.1501257898.4.2.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"data=%7B%22" + domain + ".tk%22%3A%7B%22hn1%22%3A%22" + domain +
+                    ".tk%22%2C%22hi1%22%3A%22" + dns1 + "%22%2C%22hn2%22%3A%22www." + domain + ".tk%22%2C%22hi2%22%3A%22" + dns2 + "%22%7D%7D";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool Request_my_freenom_com_update_php(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/includes/domains/confdomain-update.php");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Accept = "*/*";
+                request.Headers.Add("Origin", @"https://my.freenom.com");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
+                request.Referer = "https://my.freenom.com/cart.php?a=confdomains&language=english";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856; __utma=76711234.1062950231.1500606029.1500622941.1501257898.4; __utmb=76711234.1.10.1501257898; __utmc=76711234; __utmz=76711234.1501257898.4.2.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"domain=" + domain + ".tk&period=12M";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool Request_my_freenom_com_ricing_php(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/includes/domains/confdomain-pricing.php");
+                request.CookieContainer = cookieContainer;
+                request.KeepAlive = true;
+                request.Accept = "*/*";
+                request.Headers.Add("Origin", @"https://my.freenom.com");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
+                request.Referer = "https://my.freenom.com/cart.php?a=confdomains&language=english";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"__utma=76711234.1062950231.1500606029.1500614011.1500622941.3; __utmz=76711234.1500606179.1.1.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html; fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"domains%5B%5D=" + domain + ".tk";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool Request_my_freenom_com_cart_php(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/cart.php?a=confdomains&language=english");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Headers.Add("Upgrade-Insecure-Requests", @"1");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+                request.Referer = "http://www.freenom.com/en/index.html";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"__utma=76711234.1062950231.1500606029.1500614011.1500622941.3; __utmz=76711234.1500606179.1.1.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html; fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856");
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool Request_my_freenom_com_add_basket_2(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/includes/domains/fn-additional.php");
+                request.CookieContainer = cookieContainer;
+                request.KeepAlive = true;
+                request.Accept = "*/*";
+                request.Headers.Add("Origin", @"http://www.freenom.com");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
+                request.Referer = "http://www.freenom.com/en/index.html";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"__utma=76711234.1062950231.1500606029.1500614011.1500622941.3; __utmz=76711234.1500606179.1.1.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html; fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"domain=" + domain + "&tld=.tk";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool Request_my_freenom_com_isAvailable(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://my.freenom.com/includes/domains/fn-available.php");
+                request.CookieContainer = cookieContainer;
+
+                request.KeepAlive = true;
+                request.Accept = "*/*";
+                request.Headers.Add("Origin", @"http://www.freenom.com");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
+                request.Referer = "http://www.freenom.com/en/index.html";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+                //request.Headers.Set(HttpRequestHeader.Cookie, @"WHMCSZH5eHTGhfvzP=0stqsilf896kfg2mg2octqhf67; AWSELB=BB755F330E44FE27E970EAECFCC78F629EB1F82E68A2EB4800BB8C05440CD44F87164DBFE8ADFF3E70BD458086728EC2CBAF4FA010B644897794A9E75D3F58371A29D2A8A2; fp_token_7c6a6574-f011-4c9a-abdd-9894a102ccef=""dpydHC9pmmIJCueEh0JF7bUvM5EyfS4vg88ZcpUpBww=""; __utmt=1; __utma=76711234.1062950231.1500606029.1501257898.1501264331.5; __utmb=76711234.1.10.1501264331; __utmc=76711234; __utmz=76711234.1501257898.4.2.utmcsr=freenom.com|utmccn=(referral)|utmcmd=referral|utmcct=/en/index.html; _ga=GA1.2.1062950231.1500606029; _gid=GA1.2.1752626094.1501170856; _gat=1");
+
+                request.Method = "POST";
+                request.ServicePoint.Expect100Continue = false;
+
+                string body = @"domain=" + domain + "&tld=";
+                byte[] postBytes = System.Text.Encoding.UTF8.GetBytes(body);
+                request.ContentLength = postBytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(postBytes, 0, postBytes.Length);
+                stream.Close();
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+        }
 
         private bool Request_my_freenom_com(out HttpWebResponse response)
         {
@@ -210,7 +629,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 request.KeepAlive = true;
                 request.Accept = "*/*";
                 request.Headers.Add("Origin", @"http://www.freenom.com");
-                request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
                 request.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
                 request.Referer = "http://www.freenom.com/en/index.html";
                 request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
