@@ -14,9 +14,9 @@ namespace Alpnames_bot.Helper.JavascriptHelper
     class JsonOperator
     {
 
-        public static string GetEmailIdFromEmailsRead(string json)
+        public static long GetEmailIdFromEmailsRead(string json)
         {
-            string value = string.Empty;
+            long value = -1;
 
             try
             {
@@ -28,7 +28,7 @@ namespace Alpnames_bot.Helper.JavascriptHelper
                     {
                         if(r.mail_subject.ToLower().Contains("freenom".ToLower()))
                         {
-                            value = r.mail_id;
+                            long.TryParse( r.mail_id, out value);
                         }
                     }
                 }

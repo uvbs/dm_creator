@@ -297,6 +297,7 @@ namespace Alpnames_bot
                     int index = i;
                     if (i % 9 == 0)
                     {
+                        //TODO: check for smooth operation or atleast updation on grid.
                         CreateWebRequest(dtRecords, index, domain, dns1, dns2,
                          cancellationTokenSource.Token);
                     }
