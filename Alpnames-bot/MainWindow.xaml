@@ -55,13 +55,13 @@
                     <GradientStop Color="White" Offset="0.941"/>
                 </LinearGradientBrush>
             </DataGrid.Background>
-            <DataGrid.ContextMenu>
+            <!--<DataGrid.ContextMenu>
                 <ContextMenu >
                     <MenuItem Header="Select All" Click="MenuItem_SelectAll_Click"  />
                     <MenuItem Header="Select None" Click="MenuItem_SelectNone_Click"  />
                     <MenuItem Header="Select Highlighted" Click="MenuItem_SelectHighlighted_Click"  />
                 </ContextMenu>
-            </DataGrid.ContextMenu>
+            </DataGrid.ContextMenu>-->
         </DataGrid>
         <DockPanel x:Name="titleBar" Height="28" LastChildFill="False" Margin="16.5,0,-11,0" VerticalAlignment="Top" MouseDown="titleBar_MouseDown">
             <Button x:Name="btnClose" Content="" Width="28" DockPanel.Dock="Right" Height="28" VerticalAlignment="Top" Click="btnClose_Click">

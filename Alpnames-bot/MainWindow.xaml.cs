@@ -173,7 +173,6 @@ namespace Alpnames_bot
                     }
 
                     dtRecords = data;
-                    dtRecords.Columns["sessionId"].ColumnMapping = MappingType.Hidden;
                     dataGrid.ItemsSource = data.DefaultView;
                 }
             }
@@ -297,7 +296,6 @@ namespace Alpnames_bot
                     int index = i;
                     if (i % 9 == 0)
                     {
-                        //TODO: check for smooth operation or atleast updation on grid.
                         CreateWebRequest(dtRecords, index, domain, dns1, dns2,
                          cancellationTokenSource.Token);
                     }
@@ -327,6 +325,8 @@ namespace Alpnames_bot
             }
         }
 
+        private List<Task> taskList = new List<Task>();
+
         private void CreateEmails()
         {
             int threadCount = 0;
@@ -348,30 +348,12 @@ namespace Alpnames_bot
 
                 int i = 0;
                 List<Task<ThreadResult>> lst = new List<Task<ThreadResult>>();
-                for (i = 0; i < dtRecords.Rows.Count; i++)
+                for (i = 0; i < dtRecords.Rows.Count; i=i+9)
                 {
-
-                    string domain = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["domain"])) ? Convert.ToString(dtRecords.Rows[i]["domain"]) :
-                        Convert.ToString(dtRecords.Rows[i][1]);
-                    string dns1 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns1"])) ? Convert.ToString(dtRecords.Rows[i]["dns1"]) :
-                        Convert.ToString(dtRecords.Rows[i][2]);
-                    string dns2 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns2"])) ? Convert.ToString(dtRecords.Rows[i]["dns2"]) :
-                        Convert.ToString(dtRecords.Rows[i][3]);
-
-                    int index = i;
-                    if (i % 9 == 0)
-                    {
-                        CreateWebRequest(dtRecords, index, domain, dns1, dns2,
-                         cancellationTokenSource.Token);
-                    }
-                    else
-                    {
-                        Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, index, domain, dns1, dns2,
-                             cancellationTokenSource.Token), CancellationToken.None, TaskCreationOptions.None, pri0);
-                    }
+                    CreateParallelRequests(pri0, i);
                 }
 
-
+                
             }
             catch (OperationCanceledException)
             {
@@ -387,6 +369,46 @@ namespace Alpnames_bot
                 {
                     //MessageBox.Show("Operation Cancelled.");
                 }
+            }
+        }
+
+        private void CreateParallelRequests(TaskScheduler pri0, int i)
+        {
+            string domain = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["domain"])) ? Convert.ToString(dtRecords.Rows[i]["domain"]) :
+                Convert.ToString(dtRecords.Rows[i][1]);
+            string dns1 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns1"])) ? Convert.ToString(dtRecords.Rows[i]["dns1"]) :
+                Convert.ToString(dtRecords.Rows[i][2]);
+            string dns2 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns2"])) ? Convert.ToString(dtRecords.Rows[i]["dns2"]) :
+                Convert.ToString(dtRecords.Rows[i][3]);
+
+            int index = i;
+
+            Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, index, domain, dns1, dns2,
+                 cancellationTokenSource.Token), CancellationToken.None, TaskCreationOptions.None, pri0).ContinueWith((t) => CreateParallelRequestsContinued(pri0, i));
+            
+        }
+
+        private void CreateParallelRequests_(TaskScheduler pri0, int i)
+        {
+            string domain = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["domain"])) ? Convert.ToString(dtRecords.Rows[i]["domain"]) :
+                Convert.ToString(dtRecords.Rows[i][1]);
+            string dns1 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns1"])) ? Convert.ToString(dtRecords.Rows[i]["dns1"]) :
+                Convert.ToString(dtRecords.Rows[i][2]);
+            string dns2 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns2"])) ? Convert.ToString(dtRecords.Rows[i]["dns2"]) :
+                Convert.ToString(dtRecords.Rows[i][3]);
+
+            int index = i;
+
+            Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, index, domain, dns1, dns2,
+                 cancellationTokenSource.Token), CancellationToken.None, TaskCreationOptions.None, pri0);
+            
+        }
+
+        private void CreateParallelRequestsContinued(TaskScheduler pri0, int i)
+        {
+            for(int  j = i+1; j < i+9 && j < dtRecords.Rows.Count; j++)
+            {
+                CreateParallelRequests_(pri0, j);
             }
         }
 

@@ -42,6 +42,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
         private string apiToken;
         private string email;
         private long emailId;
+        private string linkToConfirm;
 
         private string proxy { get; set; }
         private string sessionId { get; set; }
@@ -304,6 +305,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                     response.Close();
                 }
 
+                CheckIfCancellationRequested();
                 if (responseText.ToLower().Contains("A user already exists".ToLower()))
                 {
                     lock (dtRecords)
@@ -320,13 +322,14 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                         return;
                     }
                 }
-                else 
-                lock (dtRecords)
+                else
                 {
-                    dtRecords.Rows[index]["status"] = "email sent...waiting for 10 seconds";
+                    lock (dtRecords)
+                    {
+                        dtRecords.Rows[index]["status"] = "email sent...waiting for 3 seconds";
+                    }
                 }
 
-                CheckIfCancellationRequested();
                 // booking domain ends
 
 
@@ -334,24 +337,24 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 emailId = -1;
                 while (emailId <= 0)
                 {
-                    Thread.Sleep(3000);
+                    Thread.Sleep(3000); // waiting for 3 seconds
                     if (Request_www_guerrillamail_com_checking_for_mail(out response))
                     {
                         responseText = ReadResponse(response);
 
                         response.Close();
                     }
+                    CheckIfCancellationRequested();
                     emailId = JsonOperator.GetEmailIdFromEmailsRead(responseText);
                     if (emailId <= 0)
                     {
                         lock (dtRecords)
                         {
 
-                            dtRecords.Rows[index]["status"] = "mail from freenom not received";
+                            dtRecords.Rows[index]["status"] = "Retrying...mail from freenom not received";
                         }
 
                     }
-                    CheckIfCancellationRequested();
                 }
 
                 lock (dtRecords)
@@ -361,9 +364,6 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                 }
                 // checking mail ends      
 
-                //TODO: get code there is only one span in resultant html and link resides in  it
-                // just click the link
-
                 // opening mail from freenom
                 if (Request_www_guerrillamail_com_opening_mail_from_freenom(out response))
                 {
@@ -372,6 +372,44 @@ namespace Alpnames_bot.Helper.WebRequestHelper
                     response.Close();
                 }
                 CheckIfCancellationRequested();
+
+                // parsing HTML
+                
+                doc = new HtmlDocument();
+                doc.LoadHtml(responseText);
+                var spanNode = doc.DocumentNode.SelectSingleNode("//span");
+                if (spanNode != null)
+                {
+                    var childNodes = spanNode.ChildNodes;
+                    if(childNodes != null && childNodes.Count > 0)
+                    {
+                        var aNode = childNodes[0];
+                        linkToConfirm = aNode.Attributes["href"]?.Value;
+                    }
+                }
+
+                if(!string.IsNullOrWhiteSpace(linkToConfirm))
+                {
+                    if (Request_openingLink_in_email(out response))
+                    {
+                        responseText = ReadResponse(response);
+
+                        response.Close();
+                    }
+                    CheckIfCancellationRequested();
+
+                    lock (dtRecords)
+                    {
+                        dtRecords.Rows[index]["status"] = "Booking confirmed...";
+                    }
+                }
+                else
+                {
+                    lock (dtRecords)
+                    {
+                        dtRecords.Rows[index]["status"] = "Link not received in email...";
+                    }
+                }
 
                 // opening mail from freenom ends
 
@@ -395,6 +433,37 @@ namespace Alpnames_bot.Helper.WebRequestHelper
 
         }
 
+        private bool Request_openingLink_in_email(out HttpWebResponse response)
+        {
+            response = null;
+
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(linkToConfirm);
+                request.KeepAlive = true;
+                request.Headers.Add("Upgrade-Insecure-Requests", @"1");
+                //request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36";
+                request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+                request.Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                request.Headers.Set(HttpRequestHeader.AcceptLanguage, "en-US,en;q=0.8");
+
+                response = (HttpWebResponse)request.GetResponse();
+            }
+            catch (WebException e)
+            {
+                if (e.Status == WebExceptionStatus.ProtocolError) response = (HttpWebResponse)e.Response;
+                else return false;
+            }
+            catch (Exception)
+            {
+                if (response != null) response.Close();
+                return false;
+            }
+
+            return true;
+
+        }
+
         private bool Request_www_guerrillamail_com_opening_mail_from_freenom(out HttpWebResponse response)
         {
             response = null;
@@ -403,7 +472,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
             {
                 HttpWebRequest request =
                     (HttpWebRequest)WebRequest.Create("https://www.guerrillamail.com/ajax.php?f=fetch_email&email_id=mr_" + emailId.ToString() + "&site=guerrillamail.com");
-                
+
                 request.KeepAlive = true;
                 request.Accept = "application/json, text/javascript, */*; q=0.01";
                 request.Headers.Add("X-Requested-With", @"XMLHttpRequest");
@@ -477,7 +546,6 @@ namespace Alpnames_bot.Helper.WebRequestHelper
             return true;
         }
 
-
         private bool Request_www_guerrillamail_com_checking_for_mail(out HttpWebResponse response)
         {
             response = null;
@@ -485,7 +553,7 @@ namespace Alpnames_bot.Helper.WebRequestHelper
             try
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://www.guerrillamail.com/ajax.php?f=check_email&seq=1&site=guerrillamail.com");
-               
+
 
                 request.KeepAlive = true;
                 request.Accept = "application/json, text/javascript, */*; q=0.01";
