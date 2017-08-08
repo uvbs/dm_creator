@@ -81,6 +81,15 @@ namespace Alpnames_bot.Helper.JavascriptHelper
                 if (result != null && result.result != null && result.result.list != null && result.result.list.Count > 0)
                     value = result.result.list[0].mail_recipient;
             }
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                string em = result.email_addr;
+                string[] splitEm = em.Split(new char[] { '@' });
+                if(splitEm?.Count() > 0)
+                {
+                    value = splitEm[0];
+                }
+            }
             if (key.Equals(StringHelper.Constants.ApiKey))
             {
                 if (!string.IsNullOrWhiteSpace(result.api_token))

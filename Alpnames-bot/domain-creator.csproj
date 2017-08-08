@@ -47,8 +47,10 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
     <Reference Include="System.Web" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
@@ -80,6 +82,7 @@
     <Compile Include="Helper\JavascriptHelper\JsonObject.cs" />
     <Compile Include="Helper\JavascriptHelper\JsonOperator.cs" />
     <Compile Include="Helper\StringHelper\Constants.cs" />
+    <Compile Include="Helper\StringHelper\RandomGenerator.cs" />
     <Compile Include="Helper\ThreadingHelper\ThreadResult.cs" />
     <Compile Include="Helper\WebRequestHelper\AlpWebRequest.cs" />
     <Compile Include="Helper\ThreadingHelper\QueuedTaskScheduler.cs" />
@@ -119,7 +122,9 @@
     <AppDesigner Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
