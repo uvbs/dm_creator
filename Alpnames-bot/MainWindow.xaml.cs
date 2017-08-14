@@ -1,5 +1,4 @@
-﻿using Alpnames_bot.Helper;
-using Alpnames_bot.Helper.ThreadingHelper;
+﻿using Alpnames_bot.Helper.ThreadingHelper;
 using Alpnames_bot.Helper.WebRequestHelper;
 using System;
 using System.Collections.Generic;
@@ -13,13 +12,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Schedulers;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace Alpnames_bot
 {
@@ -29,12 +22,16 @@ namespace Alpnames_bot
     public partial class MainWindow : Window
     {
         private DataTable dtRecords;
+        private List<string> lstEmails;
         private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
         internal static Mutex mut = new Mutex();
 
         public MainWindow()
         {
+
+            
+
             InitializeComponent();
         }
 
@@ -142,7 +139,7 @@ namespace Alpnames_bot
 
                     //this assume the first record is filled with the column names
                     //var headers = reader.First().Split(',');
-                    var headers = new string[] { "domain", "dns1", "dns2", "status", "sessionId" };
+                    var headers = new string[] { "domain", "dns1", "dns2",  "proxy", "status", "sessionId" };
                     foreach (var header in headers)
                     {
                         data.Columns.Add(new DataColumn(header, typeof(string)));
@@ -174,6 +171,7 @@ namespace Alpnames_bot
 
                     dtRecords = data;
                     dataGrid.ItemsSource = data.DefaultView;
+                    dataGrid.Columns[5].Visibility = Visibility.Collapsed;
                 }
             }
         }
@@ -292,16 +290,18 @@ namespace Alpnames_bot
                         Convert.ToString(dtRecords.Rows[i][2]);
                     string dns2 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns2"])) ? Convert.ToString(dtRecords.Rows[i]["dns2"]) :
                         Convert.ToString(dtRecords.Rows[i][3]);
+                    string proxy = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["proxy"])) ? Convert.ToString(dtRecords.Rows[i]["proxy"]) :
+                        Convert.ToString(dtRecords.Rows[i][4]);
 
                     int index = i;
                     if (i % 9 == 0)
                     {
-                        CreateWebRequest(dtRecords, index, domain, dns1, dns2,
+                        CreateWebRequest(dtRecords, lstEmails, index, domain, dns1, dns2, proxy, 
                          cancellationTokenSource.Token);
                     }
                     else
                     {
-                        Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, index, domain, dns1, dns2,
+                        Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, lstEmails, index, domain, dns1, dns2, proxy, 
                              cancellationTokenSource.Token), CancellationToken.None, TaskCreationOptions.None, pri0);
                     }
                 }
@@ -380,10 +380,12 @@ namespace Alpnames_bot
                 Convert.ToString(dtRecords.Rows[i][2]);
             string dns2 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns2"])) ? Convert.ToString(dtRecords.Rows[i]["dns2"]) :
                 Convert.ToString(dtRecords.Rows[i][3]);
+            string proxy = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["proxy"])) ? Convert.ToString(dtRecords.Rows[i]["proxy"]) :
+                Convert.ToString(dtRecords.Rows[i][4]);
 
             int index = i;
 
-            Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, index, domain, dns1, dns2,
+            Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords,lstEmails, index, domain, dns1, dns2, proxy, 
                  cancellationTokenSource.Token), CancellationToken.None, TaskCreationOptions.None, pri0).ContinueWith((t) => CreateParallelRequestsContinued(pri0, i));
             
         }
@@ -396,10 +398,12 @@ namespace Alpnames_bot
                 Convert.ToString(dtRecords.Rows[i][2]);
             string dns2 = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["dns2"])) ? Convert.ToString(dtRecords.Rows[i]["dns2"]) :
                 Convert.ToString(dtRecords.Rows[i][3]);
+            string proxy = !string.IsNullOrWhiteSpace(Convert.ToString(dtRecords.Rows[i]["proxy"])) ? Convert.ToString(dtRecords.Rows[i]["proxy"]) :
+                Convert.ToString(dtRecords.Rows[i][4]);
 
             int index = i;
 
-            Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords, index, domain, dns1, dns2,
+            Task.Factory.StartNew<ThreadResult>(() => CreateWebRequest(dtRecords,lstEmails, index, domain, dns1, dns2, proxy, 
                  cancellationTokenSource.Token), CancellationToken.None, TaskCreationOptions.None, pri0);
             
         }
@@ -412,7 +416,7 @@ namespace Alpnames_bot
             }
         }
 
-        private ThreadResult CreateWebRequest(DataTable dtRecords, int index, string domain, string dns1, string dns2,
+        private ThreadResult CreateWebRequest(DataTable dtRecords,List<string> lstEmails, int index, string domain, string dns1, string dns2, string proxy, 
             CancellationToken cancellationToken)
         {
             string outSessionId = string.Empty;
@@ -431,7 +435,7 @@ namespace Alpnames_bot
                 {
                     dtRecords.Rows[index]["status"] = "working...";
                 }
-                DomainCreationRequest domainCreationRequest = new DomainCreationRequest(dtRecords, index, domain, dns1, dns2, cancellationToken);
+                DomainCreationRequest domainCreationRequest = new DomainCreationRequest(dtRecords,lstEmails, index, domain, dns1, dns2, proxy, cancellationToken);
 
                 domainCreationRequest.MakeRequests();
             }
@@ -485,6 +489,56 @@ namespace Alpnames_bot
         private void btnCancel_Click(object sender, RoutedEventArgs e)
         {
             cancellationTokenSource.Cancel();
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            
+        }
+
+        private void btnExportReport_Click(object sender, RoutedEventArgs e)
+        {
+            Microsoft.Win32.SaveFileDialog saveFileDialog1 = new Microsoft.Win32.SaveFileDialog();
+            saveFileDialog1.Filter = "csv files (*.csv)|*.csv";
+            Nullable<bool> dialogResult = saveFileDialog1.ShowDialog();
+            if (dialogResult == true)
+            {
+                if (!string.IsNullOrWhiteSpace(saveFileDialog1.FileName))
+                {
+                    string filePath = saveFileDialog1.FileName;
+                    StringBuilder fileContent = new StringBuilder();
+
+                    fileContent.Append("Email ID");
+
+                    foreach (DataColumn col in dtRecords.Columns)
+                    {
+                        if (col.ColumnName.Equals("status", StringComparison.OrdinalIgnoreCase) &&
+                            col.ColumnName.Equals("sessionId", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        fileContent.Append(col.ToString() + ",");
+                    }
+
+                    fileContent.Replace(",", System.Environment.NewLine, fileContent.Length - 1, 1);
+
+
+                    int rowIndex = 0;
+                    foreach (DataRow dr in dtRecords.Rows)
+                    {
+                        fileContent.Append("\"" + lstEmails[rowIndex].ToString() + "\",");
+                        foreach (var column in dr.ItemArray)
+                        {
+                            fileContent.Append("\"" + column.ToString() + "\",");
+                        }
+
+                        fileContent.Replace(",", System.Environment.NewLine, fileContent.Length - 1, 1);
+                        rowIndex++;
+                    }
+
+                    System.IO.File.WriteAllText(filePath, fileContent.ToString());
+                }
+            }
         }
     }
 }
